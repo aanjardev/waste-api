@@ -21,17 +21,18 @@ FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata
+# Install postgresql-client untuk psql & pg_isready
+RUN apk add --no-cache ca-certificates tzdata postgresql16-client
 
-# Copy binary dari builder
 COPY --from=builder /app/bin/waste-api /app/waste-api
-
-# Copy folder migrations
 COPY --from=builder /app/migrations /app/migrations
 
-# Buat folder uploads
 RUN mkdir -p /app/uploads
+
+# Set executable permission untuk script
+RUN chmod +x /app/migrations/apply.sh
 
 EXPOSE 8080
 
+ENTRYPOINT ["/app/migrations/apply.sh"]
 CMD ["/app/waste-api"]
