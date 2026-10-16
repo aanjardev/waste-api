@@ -96,3 +96,46 @@ func TestSaveUploadedFile_RejectsTooLarge(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "file too large")
 }
+
+func TestSaveUploadedFile_RejectsZeroByteFile(t *testing.T) {
+	req := makeMultipartRequest(t, "proof_file", "empty.png", []byte{})
+	uploadDir := t.TempDir()
+
+	require.NotPanics(t, func() {
+		_, _ = saveUploadedFile(req, uploadDir)
+	})
+
+	_, err := saveUploadedFile(req, uploadDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "file content type not allowed")
+}
+
+func TestSaveUploadedFile_RejectsDoubleExtension(t *testing.T) {
+	pngBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+	pngBytes, err := base64.StdEncoding.DecodeString(pngBase64)
+	require.NoError(t, err)
+
+	req := makeMultipartRequest(t, "proof_file", "malicious.png.php", pngBytes)
+	uploadDir := t.TempDir()
+
+	_, err = saveUploadedFile(req, uploadDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "file type not allowed")
+}
+
+func TestSaveUploadedFile_SanitizesPathTraversalFilename(t *testing.T) {
+	pngBase64 := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+	pngBytes, err := base64.StdEncoding.DecodeString(pngBase64)
+	require.NoError(t, err)
+
+	req := makeMultipartRequest(t, "proof_file", "../../etc/passwd.png", pngBytes)
+	uploadDir := t.TempDir()
+
+	result, err := saveUploadedFile(req, uploadDir)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(result, "/uploads/"))
+
+	assert.FileExists(t, filepath.Join(uploadDir, filepath.Base(result)))
+	assert.False(t, strings.Contains(result, ".."))
+	assert.False(t, strings.Contains(result, "/etc/"))
+}
