@@ -1,0 +1,21 @@
+# Environment
+.env
+
+# Binary
+waste-api
+*.exe
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Docker
+pgdata/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
