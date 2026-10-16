@@ -90,10 +90,13 @@ func TestPickupService_Schedule_RejectsWhenStatusNotPending(t *testing.T) {
 		Status: model.PickupCompleted,
 	}, nil)
 
+	date := time.Now().Add(24 * time.Hour)
+	pickupRepo.On("UpdateStatusIf", mock.Anything, id, model.PickupPending, model.PickupScheduled, &date).Return(nil, nil)
+
 	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
 	_, err := svc.Schedule(context.Background(), id, dto.SchedulePickupRequest{
-		PickupDate: time.Now().Add(24 * time.Hour),
+		PickupDate: date,
 	})
 
 	require.Error(t, err)
@@ -135,11 +138,19 @@ func TestPickupService_Schedule_Success(t *testing.T) {
 		Status:      model.PickupPending,
 		SafetyCheck: true,
 	}, nil)
-	pickupRepo.On("Update", mock.Anything, mock.AnythingOfType("*model.WastePickup")).Return(nil)
+
+	date := time.Now().Add(24 * time.Hour)
+	pickupRepo.On("UpdateStatusIf", mock.Anything, id, model.PickupPending, model.PickupScheduled, &date).
+		Return(&model.WastePickup{
+			ID:          id,
+			Type:        model.WasteElectronic,
+			Status:      model.PickupScheduled,
+			PickupDate:  &date,
+			SafetyCheck: true,
+		}, nil)
 
 	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
-	date := time.Now().Add(24 * time.Hour)
 	res, err := svc.Schedule(context.Background(), id, dto.SchedulePickupRequest{
 		PickupDate: date,
 	})

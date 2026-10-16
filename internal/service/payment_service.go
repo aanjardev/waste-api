@@ -62,7 +62,7 @@ func (s *paymentService) Create(ctx context.Context, req dto.CreatePaymentReques
 		return nil, err
 	}
 	if pickup.HouseholdID != householdID {
-		return nil, fmt.Errorf("pickup does not belong to household")
+		return nil, model.ErrPickupMismatch
 	}
 
 	exists, err = s.repo.ExistsByWasteID(ctx, wasteID)

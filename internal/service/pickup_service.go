@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/aanjardev/waste-api/internal/dto"
 	"github.com/aanjardev/waste-api/internal/model"
@@ -128,22 +127,19 @@ func (s *pickupService) Schedule(ctx context.Context, id uuid.UUID, req dto.Sche
 		return nil, err
 	}
 
-	if p.Status != model.PickupPending {
-		return nil, model.ErrInvalidStatus
-	}
-
 	if p.Type == model.WasteElectronic && !p.SafetyCheck {
 		return nil, model.ErrSafetyCheckNeeded
 	}
 
-	p.Status = model.PickupScheduled
-	p.PickupDate = &req.PickupDate
-
-	if err := s.repo.Update(ctx, p); err != nil {
-		return nil, fmt.Errorf("update pickup: %w", err)
+	updated, err := s.repo.UpdateStatusIf(ctx, id, model.PickupPending, model.PickupScheduled, &req.PickupDate)
+	if err != nil {
+		return nil, fmt.Errorf("schedule pickup: %w", err)
+	}
+	if updated == nil {
+		return nil, model.ErrInvalidStatus
 	}
 
-	resp := dto.ToPickupResponse(p)
+	resp := dto.ToPickupResponse(updated)
 	return &resp, nil
 }
 
@@ -203,13 +199,23 @@ func (s *pickupService) Cancel(ctx context.Context, id uuid.UUID) (*dto.PickupRe
 		return nil, model.ErrInvalidStatus
 	}
 
-	p.Status = model.PickupCanceled
-	if err := s.repo.Update(ctx, p); err != nil {
-		return nil, fmt.Errorf("update pickup: %w", err)
+	// Coba cancel dari pending
+	updated, err := s.repo.UpdateStatusIf(ctx, id, model.PickupPending, model.PickupCanceled, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cancel pickup: %w", err)
 	}
 
-	resp := dto.ToPickupResponse(p)
+	// Kalau gagal (bukan pending), coba dari scheduled
+	if updated == nil {
+		updated, err = s.repo.UpdateStatusIf(ctx, id, model.PickupScheduled, model.PickupCanceled, nil)
+		if err != nil {
+			return nil, fmt.Errorf("cancel pickup: %w", err)
+		}
+		if updated == nil {
+			return nil, model.ErrInvalidStatus
+		}
+	}
+
+	resp := dto.ToPickupResponse(updated)
 	return &resp, nil
 }
-
-var _ = time.Now

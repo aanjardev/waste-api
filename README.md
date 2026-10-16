@@ -235,8 +235,8 @@ Import file `postman_collection.json` ke Postman. Environment variable `base_url
 ## Known Limitations
 
 - **Partial migration failure**: Jika `000001_init.up.sql` sukses tapi `000002_seed.up.sql` gagal, restart container berikutnya akan skip migration karena tabel `households` sudah ada. Untuk production, gunakan migration tool seperti `golang-migrate` yang melacak versi di tabel `schema_migrations`.
-- **Transaksi DB**: Operasi `Complete` pickup dan auto-create payment belum dibungkus dalam satu transaksi database. Jika create payment gagal, pickup tetap berstatus `completed`. Perbaikan: gunakan `pgx.Tx` untuk membungkus kedua operasi.
 - **Upload file**: Validasi MIME menggunakan `http.DetectContentType` (512 byte pertama). Polyglot file tingkat lanjut masih bisa lolos. Untuk production, tambahkan scanning atau validasi lebih ketat.
+- **ON DELETE CASCADE pada payments**: Menghapus household akan menghapus semua payment terkait. Untuk audit trail keuangan di production, pertimbangkan ON DELETE RESTRICT.
 
 ## Catatan
 

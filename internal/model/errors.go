@@ -9,4 +9,5 @@ var (
 	ErrSafetyCheckNeeded = errors.New("electronic pickup requires safety check")
 	ErrProofFileRequired = errors.New("proof file is required")
 	ErrDuplicatePayment  = errors.New("payment already exists for this pickup")
+	ErrPickupMismatch    = errors.New("pickup does not belong to household")
 )

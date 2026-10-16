@@ -6,6 +6,8 @@ DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-postgres}"
 DB_NAME="${DB_NAME:-waste_db}"
 
+export PGPASSWORD="${DB_PASSWORD:-postgres}"
+
 echo "waiting for postgres at ${DB_HOST}:${DB_PORT}..."
 
 MAX_RETRIES=30
