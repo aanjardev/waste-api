@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/aanjardev/waste-api/internal/dto"
 	"github.com/aanjardev/waste-api/internal/model"
 	"github.com/aanjardev/waste-api/internal/repository"
@@ -17,6 +18,7 @@ type PaymentService interface {
 	FindAll(ctx context.Context, q dto.PaymentListQuery, page, limit int) ([]dto.PaymentResponse, int, error)
 	Confirm(ctx context.Context, id uuid.UUID, proofURL string) (*dto.PaymentResponse, error)
 	CreateForPickup(ctx context.Context, householdID, wasteID uuid.UUID, amount float64) (*model.Payment, error)
+	CreateForPickupTx(ctx context.Context, tx pgx.Tx, householdID, wasteID uuid.UUID, amount float64) (*model.Payment, error)
 }
 
 type paymentService struct {
@@ -180,3 +182,27 @@ func (s *paymentService) CreateForPickup(ctx context.Context, householdID, waste
 
 	return p, nil
 }
+
+func (s *paymentService) CreateForPickupTx(ctx context.Context, tx pgx.Tx, householdID, wasteID uuid.UUID, amount float64) (*model.Payment, error) {
+	exists, err := s.repo.ExistsByWasteIDTx(ctx, tx, wasteID)
+	if err != nil {
+		return nil, fmt.Errorf("check payment exists in tx: %w", err)
+	}
+	if exists {
+		return nil, model.ErrDuplicatePayment
+	}
+
+	p := &model.Payment{
+		ID:          uuid.New(),
+		HouseholdID: householdID,
+		WasteID:     wasteID,
+		Amount:      amount,
+		Status:      model.PaymentPending,
+	}
+
+	if err := s.repo.CreateTx(ctx, tx, p); err != nil {
+		return nil, fmt.Errorf("create payment in tx: %w", err)
+	}
+
+	return p, nil
+}

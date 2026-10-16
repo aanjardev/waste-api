@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/mock"
 	"github.com/aanjardev/waste-api/internal/dto"
 	"github.com/aanjardev/waste-api/internal/model"
@@ -52,3 +53,11 @@ func (m *PaymentService) CreateForPickup(ctx context.Context, householdID, waste
 	}
 	return args.Get(0).(*model.Payment), args.Error(1)
 }
+
+func (m *PaymentService) CreateForPickupTx(ctx context.Context, tx pgx.Tx, householdID, wasteID uuid.UUID, amount float64) (*model.Payment, error) {
+	args := m.Called(ctx, tx, householdID, wasteID, amount)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Payment), args.Error(1)
+}

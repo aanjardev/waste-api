@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/aanjardev/waste-api/internal/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/aanjardev/waste-api/internal/model"
 )
 
 type PickupRepository interface {
@@ -16,6 +17,8 @@ type PickupRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.WastePickup, error)
 	FindAll(ctx context.Context, status string, householdID *uuid.UUID, limit, offset int) ([]model.WastePickup, int, error)
 	Update(ctx context.Context, p *model.WastePickup) error
+	UpdateStatusIf(ctx context.Context, id uuid.UUID, from, to model.PickupStatus, pickupDate *time.Time) (*model.WastePickup, error)
+	UpdateStatusIfTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, from, to model.PickupStatus, pickupDate *time.Time) (*model.WastePickup, error)
 }
 
 type pickupRepository struct {
@@ -136,4 +139,58 @@ func (r *pickupRepository) Update(ctx context.Context, p *model.WastePickup) err
 		return fmt.Errorf("update pickup: %w", err)
 	}
 	return nil
+}
+
+func (r *pickupRepository) UpdateStatusIf(
+	ctx context.Context,
+	id uuid.UUID,
+	from, to model.PickupStatus,
+	pickupDate *time.Time,
+) (*model.WastePickup, error) {
+	query := `
+		UPDATE waste_pickups
+		SET status = $3, pickup_date = COALESCE($4, pickup_date), updated_at = NOW()
+		WHERE id = $1 AND status = $2
+		RETURNING id, household_id, type, status, pickup_date, safety_check, created_at, updated_at
+	`
+	var p model.WastePickup
+	err := r.pool.QueryRow(ctx, query, id, from, to, pickupDate).Scan(
+		&p.ID, &p.HouseholdID, &p.Type, &p.Status,
+		&p.PickupDate, &p.SafetyCheck, &p.CreatedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Tidak ada baris ter-update: berarti status sudah berubah duluan
+			return nil, nil
+		}
+		return nil, fmt.Errorf("conditional update pickup: %w", err)
+	}
+	return &p, nil
+}
+
+func (r *pickupRepository) UpdateStatusIfTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	id uuid.UUID,
+	from, to model.PickupStatus,
+	pickupDate *time.Time,
+) (*model.WastePickup, error) {
+	query := `
+		UPDATE waste_pickups
+		SET status = $3, pickup_date = COALESCE($4, pickup_date), updated_at = NOW()
+		WHERE id = $1 AND status = $2
+		RETURNING id, household_id, type, status, pickup_date, safety_check, created_at, updated_at
+	`
+	var p model.WastePickup
+	err := tx.QueryRow(ctx, query, id, from, to, pickupDate).Scan(
+		&p.ID, &p.HouseholdID, &p.Type, &p.Status,
+		&p.PickupDate, &p.SafetyCheck, &p.CreatedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("conditional update pickup in tx: %w", err)
+	}
+	return &p, nil
 }

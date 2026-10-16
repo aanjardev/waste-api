@@ -18,6 +18,8 @@ type PaymentRepository interface {
 	Update(ctx context.Context, p *model.Payment) error
 	HasPendingByHousehold(ctx context.Context, householdID uuid.UUID) (bool, error)
 	ExistsByWasteID(ctx context.Context, wasteID uuid.UUID) (bool, error)
+	CreateTx(ctx context.Context, tx pgx.Tx, p *model.Payment) error
+	ExistsByWasteIDTx(ctx context.Context, tx pgx.Tx, wasteID uuid.UUID) (bool, error)
 }
 
 type paymentRepository struct {
@@ -179,3 +181,28 @@ func (r *paymentRepository) ExistsByWasteID(ctx context.Context, wasteID uuid.UU
 	}
 	return exists, nil
 }
+
+func (r *paymentRepository) CreateTx(ctx context.Context, tx pgx.Tx, p *model.Payment) error {
+	query := `
+		INSERT INTO payments (id, household_id, waste_id, amount, payment_date, status, proof_file_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+		RETURNING created_at, updated_at
+	`
+	err := tx.QueryRow(ctx, query,
+		p.ID, p.HouseholdID, p.WasteID, p.Amount,
+		p.PaymentDate, p.Status, p.ProofFileURL,
+	).Scan(&p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("insert payment in tx: %w", err)
+	}
+	return nil
+}
+
+func (r *paymentRepository) ExistsByWasteIDTx(ctx context.Context, tx pgx.Tx, wasteID uuid.UUID) (bool, error) {
+	query := `SELECT EXISTS (SELECT 1 FROM payments WHERE waste_id = $1)`
+	var exists bool
+	if err := tx.QueryRow(ctx, query, wasteID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check payment by waste in tx: %w", err)
+	}
+	return exists, nil
+}

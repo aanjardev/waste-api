@@ -40,7 +40,7 @@ func main() {
 
 	householdSvc := service.NewHouseholdService(householdRepo)
 	paymentSvc := service.NewPaymentService(paymentRepo, householdRepo, pickupRepo)
-	pickupSvc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, paymentSvc)
+	pickupSvc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, paymentSvc, pool)
 	reportSvc := service.NewReportService(reportRepo)
 
 	router := handler.NewRouter(householdSvc, pickupSvc, paymentSvc, reportSvc, cfg.UploadDir)

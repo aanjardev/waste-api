@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/mock"
 	"github.com/aanjardev/waste-api/internal/model"
 )
@@ -47,3 +48,13 @@ func (m *PaymentRepository) ExistsByWasteID(ctx context.Context, wasteID uuid.UU
 	args := m.Called(ctx, wasteID)
 	return args.Bool(0), args.Error(1)
 }
+
+func (m *PaymentRepository) CreateTx(ctx context.Context, tx pgx.Tx, p *model.Payment) error {
+	args := m.Called(ctx, tx, p)
+	return args.Error(0)
+}
+
+func (m *PaymentRepository) ExistsByWasteIDTx(ctx context.Context, tx pgx.Tx, wasteID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, tx, wasteID)
+	return args.Bool(0), args.Error(1)
+}

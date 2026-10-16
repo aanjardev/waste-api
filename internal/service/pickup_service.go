@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/aanjardev/waste-api/internal/dto"
 	"github.com/aanjardev/waste-api/internal/model"
 	"github.com/aanjardev/waste-api/internal/repository"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
+
+type TxBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
 
 type PickupService interface {
 	Create(ctx context.Context, req dto.CreatePickupRequest) (*dto.PickupResponse, error)
@@ -25,6 +30,7 @@ type pickupService struct {
 	paymentRepo   repository.PaymentRepository
 	householdRepo repository.HouseholdRepository
 	paymentSvc    PaymentService
+	db            TxBeginner
 }
 
 func NewPickupService(
@@ -32,12 +38,14 @@ func NewPickupService(
 	paymentRepo repository.PaymentRepository,
 	householdRepo repository.HouseholdRepository,
 	paymentSvc PaymentService,
+	db TxBeginner,
 ) PickupService {
 	return &pickupService{
 		repo:          repo,
 		paymentRepo:   paymentRepo,
 		householdRepo: householdRepo,
 		paymentSvc:    paymentSvc,
+		db:            db,
 	}
 }
 
@@ -149,17 +157,30 @@ func (s *pickupService) Complete(ctx context.Context, id uuid.UUID) (*dto.Pickup
 		return nil, model.ErrInvalidStatus
 	}
 
-	p.Status = model.PickupCompleted
-	if err := s.repo.Update(ctx, p); err != nil {
-		return nil, fmt.Errorf("update pickup: %w", err)
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	updated, err := s.repo.UpdateStatusIfTx(ctx, tx, id, model.PickupScheduled, model.PickupCompleted, nil)
+	if err != nil {
+		return nil, fmt.Errorf("complete pickup in tx: %w", err)
+	}
+	if updated == nil {
+		return nil, model.ErrInvalidStatus
 	}
 
-	amount := pickupAmount(p.Type)
-	if _, err := s.paymentSvc.CreateForPickup(ctx, p.HouseholdID, p.ID, amount); err != nil {
-		return nil, fmt.Errorf("create payment: %w", err)
+	amount := pickupAmount(updated.Type)
+	if _, err := s.paymentSvc.CreateForPickupTx(ctx, tx, updated.HouseholdID, updated.ID, amount); err != nil {
+		return nil, fmt.Errorf("create payment in tx: %w", err)
 	}
 
-	resp := dto.ToPickupResponse(p)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
+	}
+
+	resp := dto.ToPickupResponse(updated)
 	return &resp, nil
 }
 

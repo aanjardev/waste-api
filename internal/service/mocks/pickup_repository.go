@@ -2,10 +2,12 @@ package mocks
 
 import (
 	"context"
+	"time"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/aanjardev/waste-api/internal/model"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/mock"
 )
 
 type PickupRepository struct {
@@ -37,3 +39,20 @@ func (m *PickupRepository) Update(ctx context.Context, p *model.WastePickup) err
 	args := m.Called(ctx, p)
 	return args.Error(0)
 }
+
+func (m *PickupRepository) UpdateStatusIf(ctx context.Context, id uuid.UUID, from, to model.PickupStatus, pickupDate *time.Time) (*model.WastePickup, error) {
+	args := m.Called(ctx, id, from, to, pickupDate)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.WastePickup), args.Error(1)
+}
+
+func (m *PickupRepository) UpdateStatusIfTx(ctx context.Context, tx pgx.Tx, id uuid.UUID, from, to model.PickupStatus, pickupDate *time.Time) (*model.WastePickup, error) {
+	args := m.Called(ctx, tx, id, from, to, pickupDate)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.WastePickup), args.Error(1)
+}
+

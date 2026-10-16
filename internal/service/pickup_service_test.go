@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"github.com/aanjardev/waste-api/internal/dto"
 	"github.com/aanjardev/waste-api/internal/model"
 	"github.com/aanjardev/waste-api/internal/service"
 	"github.com/aanjardev/waste-api/internal/service/mocks"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPickupService_Create_RejectsWhenHouseholdHasPendingPayment(t *testing.T) {
@@ -24,7 +24,7 @@ func TestPickupService_Create_RejectsWhenHouseholdHasPendingPayment(t *testing.T
 	householdRepo.On("Exists", mock.Anything, householdID).Return(true, nil)
 	paymentRepo.On("HasPendingByHousehold", mock.Anything, householdID).Return(true, nil)
 
-	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil)
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
 	_, err := svc.Create(context.Background(), dto.CreatePickupRequest{
 		HouseholdID: householdID.String(),
@@ -44,7 +44,7 @@ func TestPickupService_Create_RejectsWhenHouseholdNotFound(t *testing.T) {
 	householdID := uuid.New()
 	householdRepo.On("Exists", mock.Anything, householdID).Return(false, nil)
 
-	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil)
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
 	_, err := svc.Create(context.Background(), dto.CreatePickupRequest{
 		HouseholdID: householdID.String(),
@@ -65,7 +65,7 @@ func TestPickupService_Create_Success(t *testing.T) {
 	paymentRepo.On("HasPendingByHousehold", mock.Anything, householdID).Return(false, nil)
 	pickupRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.WastePickup")).Return(nil)
 
-	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil)
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
 	res, err := svc.Create(context.Background(), dto.CreatePickupRequest{
 		HouseholdID: householdID.String(),
@@ -90,7 +90,7 @@ func TestPickupService_Schedule_RejectsWhenStatusNotPending(t *testing.T) {
 		Status: model.PickupCompleted,
 	}, nil)
 
-	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil)
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
 	_, err := svc.Schedule(context.Background(), id, dto.SchedulePickupRequest{
 		PickupDate: time.Now().Add(24 * time.Hour),
@@ -113,7 +113,7 @@ func TestPickupService_Schedule_RejectsElectronicWithoutSafetyCheck(t *testing.T
 		SafetyCheck: false,
 	}, nil)
 
-	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil)
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
 	_, err := svc.Schedule(context.Background(), id, dto.SchedulePickupRequest{
 		PickupDate: time.Now().Add(24 * time.Hour),
@@ -137,7 +137,7 @@ func TestPickupService_Schedule_Success(t *testing.T) {
 	}, nil)
 	pickupRepo.On("Update", mock.Anything, mock.AnythingOfType("*model.WastePickup")).Return(nil)
 
-	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil)
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, nil, nil)
 
 	date := time.Now().Add(24 * time.Hour)
 	res, err := svc.Schedule(context.Background(), id, dto.SchedulePickupRequest{
@@ -155,6 +155,8 @@ func TestPickupService_Complete_CreatesPaymentWithCorrectAmount(t *testing.T) {
 	paymentRepo := new(mocks.PaymentRepository)
 	householdRepo := new(mocks.HouseholdRepository)
 	paymentSvc := new(mocks.PaymentService)
+	txBeginner := new(mocks.TxBeginner)
+	mockTx := new(mocks.Tx)
 
 	id := uuid.New()
 	householdID := uuid.New()
@@ -165,15 +167,64 @@ func TestPickupService_Complete_CreatesPaymentWithCorrectAmount(t *testing.T) {
 		Type:        model.WasteElectronic,
 		Status:      model.PickupScheduled,
 	}, nil)
-	pickupRepo.On("Update", mock.Anything, mock.AnythingOfType("*model.WastePickup")).Return(nil)
-	paymentSvc.On("CreateForPickup", mock.Anything, householdID, id, float64(100000)).
+
+	txBeginner.On("Begin", mock.Anything).Return(mockTx, nil)
+	mockTx.On("Rollback", mock.Anything).Return(nil)
+	mockTx.On("Commit", mock.Anything).Return(nil)
+
+	pickupRepo.On("UpdateStatusIfTx", mock.Anything, mockTx, id, model.PickupScheduled, model.PickupCompleted, (*time.Time)(nil)).
+		Return(&model.WastePickup{
+			ID:          id,
+			HouseholdID: householdID,
+			Type:        model.WasteElectronic,
+			Status:      model.PickupCompleted,
+		}, nil)
+
+	paymentSvc.On("CreateForPickupTx", mock.Anything, mockTx, householdID, id, float64(100000)).
 		Return(&model.Payment{}, nil)
 
-	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, paymentSvc)
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, paymentSvc, txBeginner)
 
 	res, err := svc.Complete(context.Background(), id)
 
 	require.NoError(t, err)
 	assert.Equal(t, "completed", res.Status)
 	paymentSvc.AssertExpectations(t)
+	mockTx.AssertExpectations(t)
+	txBeginner.AssertExpectations(t)
 }
+
+func TestPickupService_Complete_RejectsWhenAlreadyCompletedByOther(t *testing.T) {
+	pickupRepo := new(mocks.PickupRepository)
+	paymentRepo := new(mocks.PaymentRepository)
+	householdRepo := new(mocks.HouseholdRepository)
+	paymentSvc := new(mocks.PaymentService)
+	txBeginner := new(mocks.TxBeginner)
+	mockTx := new(mocks.Tx)
+
+	id := uuid.New()
+	householdID := uuid.New()
+
+	pickupRepo.On("FindByID", mock.Anything, id).Return(&model.WastePickup{
+		ID:          id,
+		HouseholdID: householdID,
+		Type:        model.WasteOrganic,
+		Status:      model.PickupScheduled,
+	}, nil)
+
+	txBeginner.On("Begin", mock.Anything).Return(mockTx, nil)
+	mockTx.On("Rollback", mock.Anything).Return(nil)
+
+	pickupRepo.On("UpdateStatusIfTx", mock.Anything, mockTx, id, model.PickupScheduled, model.PickupCompleted, (*time.Time)(nil)).
+		Return(nil, nil)
+
+	svc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, paymentSvc, txBeginner)
+
+	_, err := svc.Complete(context.Background(), id)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, model.ErrInvalidStatus)
+	paymentSvc.AssertNotCalled(t, "CreateForPickupTx", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	mockTx.AssertNotCalled(t, "Commit", mock.Anything)
+}
+
