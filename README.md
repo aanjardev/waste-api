@@ -75,18 +75,9 @@ Tunggu sampai muncul log:
     waste_app | connected to database
     waste_app | server running on :8080
 
-### 4. Jalankan migration & seed
+Migration dan seed otomatis dijalankan saat container pertama kali start.
 
-Di terminal baru:
-
-    make migrate-up
-
-Atau manual (kalau tidak ada `make` di Windows):
-
-    docker compose exec -T db psql -U postgres -d waste_db < migrations/000001_init.up.sql
-    docker compose exec -T db psql -U postgres -d waste_db < migrations/000002_seed.up.sql
-
-### 5. Tes
+### 4. Tes
 
     curl http://localhost:8080/health
 
@@ -109,12 +100,19 @@ Harus `OK`.
 
 ## Menjalankan Migration & Seeding
 
-Dengan Makefile:
+Migration dan seed otomatis dijalankan saat container app pertama kali start. Kamu tidak perlu menjalankan perintah manual.
+
+Kalau mau reset database:
+
+    docker compose down -v
+    docker compose up --build
+
+Kalau mau jalankan migration manual (untuk development):
 
     make migrate-up
     make migrate-down
 
-Manual:
+Manual (legacy):
 
     docker compose exec -T db psql -U postgres -d waste_db < migrations/000001_init.up.sql
     docker compose exec -T db psql -U postgres -d waste_db < migrations/000002_seed.up.sql
