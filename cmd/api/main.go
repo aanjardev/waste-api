@@ -36,11 +36,15 @@ func main() {
 	householdRepo := repository.NewHouseholdRepository(pool)
 	pickupRepo := repository.NewPickupRepository(pool)
 	paymentRepo := repository.NewPaymentRepository(pool)
+	reportRepo := repository.NewReportRepository(pool)
+
 	householdSvc := service.NewHouseholdService(householdRepo)
-	pickupSvc := service.NewPickupService(pickupRepo, paymentRepo)
+	paymentSvc := service.NewPaymentService(paymentRepo, householdRepo, pickupRepo)
+	pickupSvc := service.NewPickupService(pickupRepo, paymentRepo, householdRepo, paymentSvc)
+	reportSvc := service.NewReportService(reportRepo)
 
-	router := handler.NewRouter(householdSvc, pickupSvc)
-
+	router := handler.NewRouter(householdSvc, pickupSvc, paymentSvc, reportSvc, cfg.UploadDir)
+	
 	srv := &http.Server{
 		Addr:    ":" + cfg.AppPort,
 		Handler: router,

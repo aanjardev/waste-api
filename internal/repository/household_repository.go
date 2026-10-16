@@ -16,6 +16,7 @@ type HouseholdRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Household, error)
 	FindAll(ctx context.Context, limit, offset int) ([]model.Household, int, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	Exists(ctx context.Context, id uuid.UUID) (bool, error)
 }
 
 type householdRepository struct {
@@ -103,4 +104,13 @@ func (r *householdRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return model.ErrNotFound
 	}
 	return nil
+}
+
+func (r *householdRepository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
+	query := `SELECT EXISTS (SELECT 1 FROM households WHERE id = $1)`
+	var exists bool
+	if err := r.pool.QueryRow(ctx, query, id).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check household exists: %w", err)
+	}
+	return exists, nil
 }

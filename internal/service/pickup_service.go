@@ -21,12 +21,24 @@ type PickupService interface {
 }
 
 type pickupService struct {
-	repo        repository.PickupRepository
-	paymentRepo repository.PaymentRepository
+	repo          repository.PickupRepository
+	paymentRepo   repository.PaymentRepository
+	householdRepo repository.HouseholdRepository
+	paymentSvc    PaymentService
 }
 
-func NewPickupService(repo repository.PickupRepository, paymentRepo repository.PaymentRepository) PickupService {
-	return &pickupService{repo: repo, paymentRepo: paymentRepo}
+func NewPickupService(
+	repo repository.PickupRepository,
+	paymentRepo repository.PaymentRepository,
+	householdRepo repository.HouseholdRepository,
+	paymentSvc PaymentService,
+) PickupService {
+	return &pickupService{
+		repo:          repo,
+		paymentRepo:   paymentRepo,
+		householdRepo: householdRepo,
+		paymentSvc:    paymentSvc,
+	}
 }
 
 func (s *pickupService) Create(ctx context.Context, req dto.CreatePickupRequest) (*dto.PickupResponse, error) {
@@ -134,8 +146,22 @@ func (s *pickupService) Complete(ctx context.Context, id uuid.UUID) (*dto.Pickup
 		return nil, fmt.Errorf("update pickup: %w", err)
 	}
 
+	amount := pickupAmount(p.Type)
+	if _, err := s.paymentSvc.CreateForPickup(ctx, p.HouseholdID, p.ID, amount); err != nil {
+		return nil, fmt.Errorf("create payment: %w", err)
+	}
+
 	resp := dto.ToPickupResponse(p)
 	return &resp, nil
+}
+
+func pickupAmount(t model.WasteType) float64 {
+	switch t {
+	case model.WasteElectronic:
+		return 100000
+	default:
+		return 50000
+	}
 }
 
 func (s *pickupService) Cancel(ctx context.Context, id uuid.UUID) (*dto.PickupResponse, error) {

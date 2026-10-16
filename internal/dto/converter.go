@@ -39,3 +39,25 @@ func ToPickupResponseList(items []model.WastePickup) []PickupResponse {
 	}
 	return result
 }
+
+func ToPaymentResponse(p *model.Payment) PaymentResponse {
+	return PaymentResponse{
+		ID:           p.ID.String(),
+		HouseholdID:  p.HouseholdID.String(),
+		WasteID:      p.WasteID.String(),
+		Amount:       p.Amount,
+		PaymentDate:  p.PaymentDate,
+		Status:       string(p.Status),
+		ProofFileURL: p.ProofFileURL,
+		CreatedAt:    p.CreatedAt,
+		UpdatedAt:    p.UpdatedAt,
+	}
+}
+
+func ToPaymentResponseList(items []model.Payment) []PaymentResponse {
+	result := make([]PaymentResponse, 0, len(items))
+	for i := range items {
+		result = append(result, ToPaymentResponse(&items[i]))
+	}
+	return result
+}
