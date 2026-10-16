@@ -28,7 +28,8 @@ test:
 	go test ./... -v
 
 migrate-up:
-	docker compose exec -T db psql -U postgres -d waste_db -f /app/migrations/000001_init.up.sql
+	docker compose exec -T db psql -U postgres -d waste_db < migrations/000001_init.up.sql
+	docker compose exec -T db psql -U postgres -d waste_db < migrations/000002_seed.up.sql
 
 migrate-down:
-	docker compose exec -T db psql -U postgres -d waste_db -f /app/migrations/000001_init.down.sql
+	docker compose exec -T db psql -U postgres -d waste_db < migrations/000001_init.down.sql
