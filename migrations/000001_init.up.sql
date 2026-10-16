@@ -44,3 +44,4 @@ CREATE TABLE payments (
 CREATE INDEX idx_payments_household_id ON payments(household_id);
 CREATE INDEX idx_payments_status ON payments(status);
 CREATE INDEX idx_payments_waste_id ON payments(waste_id);
+CREATE INDEX idx_payments_created_at ON payments(created_at);

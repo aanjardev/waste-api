@@ -21,8 +21,13 @@ var allowedExtensions = map[string]bool{
 	".pdf":  true,
 }
 
+var allowedMimeTypes = map[string]bool{
+	"image/jpeg":      true,
+	"image/png":       true,
+	"application/pdf": true,
+}
+
 func saveUploadedFile(r *http.Request, uploadDir string) (string, error) {
-	// Cek content-type dulu
 	ct := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(ct, "multipart/form-data") {
 		return "", fmt.Errorf("proof_file is required")
@@ -43,6 +48,21 @@ func saveUploadedFile(r *http.Request, uploadDir string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	if !allowedExtensions[ext] {
 		return "", fmt.Errorf("file type not allowed")
+	}
+
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("read file: %w", err)
+	}
+
+	detectedMime := http.DetectContentType(buffer[:n])
+	if !allowedMimeTypes[detectedMime] {
+		return "", fmt.Errorf("file content type not allowed: %s", detectedMime)
+	}
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("seek file: %w", err)
 	}
 
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {

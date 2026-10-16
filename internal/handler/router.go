@@ -54,8 +54,8 @@ func NewRouter(
 
 	return middleware.Chain(
 		mux,
-		middleware.Recover,
-		middleware.Logging,
 		middleware.RequireJSON,
+		middleware.Logging,
+		middleware.Recover,
 	)
 }
