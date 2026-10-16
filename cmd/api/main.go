@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/aanjardev/waste-api/internal/config"
+	"github.com/aanjardev/waste-api/internal/handler"
+	"github.com/aanjardev/waste-api/internal/repository"
+	"github.com/aanjardev/waste-api/internal/service"
 )
 
 func main() {
@@ -29,16 +32,15 @@ func main() {
 
 	log.Println("connected to database")
 
-	// Handler sementara
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+	// Wire dependencies
+	householdRepo := repository.NewHouseholdRepository(pool)
+	householdSvc := service.NewHouseholdService(householdRepo)
+
+	router := handler.NewRouter(householdSvc)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.AppPort,
-		Handler: mux,
+		Handler: router,
 	}
 
 	go func() {
