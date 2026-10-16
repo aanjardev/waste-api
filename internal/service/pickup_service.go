@@ -47,6 +47,14 @@ func (s *pickupService) Create(ctx context.Context, req dto.CreatePickupRequest)
 		return nil, fmt.Errorf("parse household id: %w", err)
 	}
 
+	exists, err := s.householdRepo.Exists(ctx, householdID)
+	if err != nil {
+		return nil, fmt.Errorf("check household: %w", err)
+	}
+	if !exists {
+		return nil, model.ErrNotFound
+	}
+
 	hasPending, err := s.paymentRepo.HasPendingByHousehold(ctx, householdID)
 	if err != nil {
 		return nil, fmt.Errorf("check pending payment: %w", err)
