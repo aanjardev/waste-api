@@ -4,9 +4,9 @@ Backend API untuk Sistem Pengumpulan Sampah Komunitas. Dibangun dengan Go, Postg
 
 ## Tech Stack
 
-- Language: Go 1.22
+- Language: Go 1.27
 - Database: PostgreSQL 16
-- HTTP Framework: net/http (Go 1.22 routing)
+- HTTP Framework: net/http (Go 1.27 routing)
 - DB Driver: pgx/v5
 - Containerization: Docker + Docker Compose
 - Validation: go-playground/validator
