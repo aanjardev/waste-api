@@ -8,7 +8,15 @@ DB_NAME="${DB_NAME:-waste_db}"
 
 echo "waiting for postgres at ${DB_HOST}:${DB_PORT}..."
 
+MAX_RETRIES=30
+RETRY=0
+
 until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" > /dev/null 2>&1; do
+  RETRY=$((RETRY + 1))
+  if [ "$RETRY" -ge "$MAX_RETRIES" ]; then
+    echo "error: postgres not ready after ${MAX_RETRIES} attempts"
+    exit 1
+  fi
   sleep 1
 done
 
