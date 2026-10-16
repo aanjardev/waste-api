@@ -34,9 +34,12 @@ func main() {
 
 	// Wire dependencies
 	householdRepo := repository.NewHouseholdRepository(pool)
+	pickupRepo := repository.NewPickupRepository(pool)
+	paymentRepo := repository.NewPaymentRepository(pool)
 	householdSvc := service.NewHouseholdService(householdRepo)
+	pickupSvc := service.NewPickupService(pickupRepo, paymentRepo)
 
-	router := handler.NewRouter(householdSvc)
+	router := handler.NewRouter(householdSvc, pickupSvc)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.AppPort,

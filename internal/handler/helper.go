@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -14,6 +16,16 @@ import (
 )
 
 var validate = validator.New()
+
+func init() {
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+}
 
 func decodeJSON(r *http.Request, dst interface{}) error {
 	dec := json.NewDecoder(r.Body)
@@ -54,7 +66,6 @@ func validationMessage(e validator.FieldError) string {
 	}
 }
 
-
 func parseUUID(w http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
 	raw := r.PathValue(param)
 	id, err := uuid.Parse(raw)
@@ -64,7 +75,6 @@ func parseUUID(w http.ResponseWriter, r *http.Request, param string) (uuid.UUID,
 	}
 	return id, true
 }
-
 
 func parseIntQuery(r *http.Request, key string, def, min, max int) int {
 	raw := r.URL.Query().Get(key)
